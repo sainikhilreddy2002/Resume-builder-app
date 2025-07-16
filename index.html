@@ -249,6 +249,13 @@
 
                 const { personal, experience, education, skills } = resumeData;
 
+                // Basic validation: Check if there's enough data to form a meaningful prompt
+                if (!personal.name && experience.length === 0 && education.length === 0 && skills.length === 0) {
+                    showMessage('Please enter some experience, education, or skills to generate a summary.', 'error');
+                    setIsGeneratingSummary(false);
+                    return;
+                }
+
                 // Construct a detailed prompt for the LLM
                 let prompt = `Generate a concise (3-5 sentences), impactful professional summary for a resume. Focus on key achievements, relevant skills, and career aspirations. Avoid using "I" or "my".
 
@@ -266,11 +273,13 @@ ${skills.map(skill => `${skill.name} (${skill.level})`).join(', ')}
 
 Please provide only the summary text.`;
 
+                console.log("Prompt sent to LLM:", prompt); // Log the prompt for debugging
+
                 try {
                     let chatHistory = [];
                     chatHistory.push({ role: "user", parts: [{ text: prompt }] });
                     const payload = { contents: chatHistory };
-                    const apiKey = "" // If you want to use models other than gemini-2.0-flash or imagen-3.0-generate-002, provide an API key here. Otherwise, leave this as-is.
+                    const apiKey = "AIzaSyANWcDdvxFgYUJDKKrI0KC5JZPcmrmDOo4"; // Your provided API key
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
                     const response = await fetch(apiUrl, {
@@ -281,10 +290,12 @@ Please provide only the summary text.`;
 
                     if (!response.ok) {
                         const errorData = await response.json();
-                        throw new Error(errorData.error?.message || 'Failed to generate summary.');
+                        console.error("API response error:", response.status, errorData); // Log API error response
+                        throw new Error(errorData.error?.message || `API request failed with status ${response.status}.`);
                     }
 
                     const result = await response.json();
+                    console.log("LLM raw response:", result); // Log raw LLM response
 
                     if (result.candidates && result.candidates.length > 0 &&
                         result.candidates[0].content && result.candidates[0].content.parts &&
@@ -299,11 +310,13 @@ Please provide only the summary text.`;
                         }));
                         showMessage('Summary generated successfully!', 'success');
                     } else {
-                        showMessage('No summary generated. Please try again.', 'error');
+                        // Handle cases where response is OK but content is empty or malformed
+                        console.error("LLM response did not contain expected content structure:", result);
+                        showMessage('AI could not generate a summary. Please try adding more details or try again.', 'error');
                     }
                 } catch (error) {
                     console.error("Error generating summary:", error);
-                    showMessage(`Error generating summary: ${error.message}`, 'error');
+                    showMessage(`Error generating summary: ${error.message}. Check console for details.`, 'error');
                 } finally {
                     setIsGeneratingSummary(false);
                 }
